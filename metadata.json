@@ -1,0 +1,6 @@
+{
+  "name": "Wyckoff VSA Screener",
+  "description": "Scansione quantitativa di mercato basata sulle leggi di Wyckoff e Volume Spread Analysis (VSA) per asset del paniere italiano ed estero.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
