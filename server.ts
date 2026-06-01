@@ -1,6 +1,5 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 
 // Tipi utili per l'analisi quantitativa
 interface TickerHistoryBar {
@@ -568,6 +567,7 @@ if (!isVercel) {
   const startLocalServer = async () => {
     // Vite development middleware o server statico per produzione
     if (process.env.NODE_ENV !== "production") {
+      const { createServer: createViteServer } = await import("vite");
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: "spa"
