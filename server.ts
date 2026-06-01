@@ -277,6 +277,24 @@ function analyzeAssetData(ticker: string, bars: TickerHistoryBar[]): AnalysisRes
   };
 }
 
+// Helper per eseguire fetch con un limite di timeout e prevenire crash su Vercel Serverless
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 1200): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+}
+
 // Funzione principale per scaricare e analizzare i dati storici da Yahoo Finance
 async function fetchAndAnalyzeTicker(ticker: string): Promise<AnalysisResult | null> {
   let targetTicker = ticker.trim().toUpperCase();
@@ -290,12 +308,12 @@ async function fetchAndAnalyzeTicker(ticker: string): Promise<AnalysisResult | n
   const url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(targetTicker)}?range=90d&interval=1d`;
   
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json"
       }
-    });
+    }, 1200);
 
     if (!response.ok) {
       throw new Error(`Inadempienza server Yahoo Finance. Status: ${response.status}`);
@@ -369,7 +387,7 @@ app.post("/api/screener", async (req, res) => {
       const analysisPromises = tickers.map(ticker => fetchAndAnalyzeTicker(ticker));
       const results = await Promise.all(analysisPromises);
       
-      let finalResults = results.filter((r): r is AnalysisResult => r !== null);
+      let finalResults = results.filter((r): r is AnalysisResult => r !== null && r !== undefined);
       let isDemoMode = false;
 
       // Se tutte le chiamate falliscono (es. problemi IP o blocco CORS container), generiamo dati simulati realistici per preservare l'analisi interattiva
@@ -408,7 +426,12 @@ app.post("/api/screener", async (req, res) => {
 
     } catch (err: any) {
       console.error("[Screener Error]", err);
-      res.status(500).json({ success: false, error: "Errore interno durante lo screening." });
+      res.status(500).json({ 
+        success: false, 
+        error: "Errore interno durante lo screening.", 
+        details: err?.message || String(err),
+        stack: err?.stack
+      });
     }
   });
 
@@ -429,12 +452,12 @@ app.post("/api/screener", async (req, res) => {
     
     try {
       const url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=90d&interval=1d`;
-      const response = await fetch(url, {
+      const response = await fetchWithTimeout(url, {
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
           "Accept": "application/json"
         }
-      });
+      }, 3000);
 
       if (!response.ok) {
         throw new Error(`Yahoo Finance Service status ${response.status}`);

@@ -99,7 +99,16 @@ export default function App() {
       });
 
       if (!response.ok) {
-        throw new Error(`Risposta anomala del server: ${response.status}`);
+        let serverErr = `Risposta anomala del server: ${response.status}`;
+        try {
+          const errData = await response.json();
+          if (errData && errData.details) {
+            serverErr += ` (Dettaglio: ${errData.details})`;
+          } else if (errData && errData.error) {
+            serverErr += ` (Dettaglio: ${errData.error})`;
+          }
+        } catch (_) {}
+        throw new Error(serverErr);
       }
 
       const data = await response.json();
