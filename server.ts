@@ -280,7 +280,15 @@ function analyzeAssetData(ticker: string, bars: TickerHistoryBar[]): AnalysisRes
 
 // Funzione principale per scaricare e analizzare i dati storici da Yahoo Finance
 async function fetchAndAnalyzeTicker(ticker: string): Promise<AnalysisResult | null> {
-  const url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=90d&interval=1d`;
+  let targetTicker = ticker.trim().toUpperCase();
+  
+  // Se il ticker inizia con un numero (es. 1GOOGL) e non ha un suffisso di borsa con punto, aggiungiamo .MI
+  if (/^[0-9]/.test(targetTicker) && !targetTicker.includes(".")) {
+    targetTicker = `${targetTicker}.MI`;
+    console.log(`[TICKER NORMALIZER] Ticker normalizzato: da ${ticker} a ${targetTicker}`);
+  }
+
+  const url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(targetTicker)}?range=90d&interval=1d`;
   
   try {
     const response = await fetch(url, {
@@ -333,26 +341,23 @@ async function fetchAndAnalyzeTicker(ticker: string): Promise<AnalysisResult | n
     }
 
     if (bars.length < 50) {
-      console.warn(`[FETCH] ${ticker} ha solo ${bars.length} candele filtrate valide.`);
+      console.warn(`[FETCH] ${targetTicker} ha solo ${bars.length} candele filtrate valide.`);
       return null;
     }
 
-    return analyzeAssetData(ticker, bars);
+    return analyzeAssetData(targetTicker, bars);
 
   } catch (error: any) {
-    console.error(`[ERROR FR] Errore scaricamento dati reali per ${ticker}: ${error.message}`);
+    console.error(`[ERROR FR] Errore scaricamento dati reali per ${targetTicker} (originale: ${ticker}): ${error.message}`);
     return null;
   }
 }
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+app.use(express.json());
 
-  app.use(express.json());
-
-  // 1. API: Screener di mercato bicarica tutti i ticker indicati
-  app.post("/api/screener", async (req, res) => {
+// 1. API: Screener di mercato bicarica tutti i ticker indicati
+app.post("/api/screener", async (req, res) => {
     let tickers: string[] = req.body.tickers;
     if (!tickers || !Array.isArray(tickers) || tickers.length === 0) {
       return res.status(400).json({ success: false, error: "Tickers mancanti o malformati." });
@@ -410,9 +415,15 @@ async function startServer() {
 
   // 2. API: Storico per un singolo Ticker (per visualizzazione grafici e candele)
   app.get("/api/ticker-history", async (req, res) => {
-    const ticker = req.query.ticker as string;
-    if (!ticker) {
+    const rawTicker = req.query.ticker as string;
+    if (!rawTicker) {
       return res.status(400).json({ success: false, error: "Parametro ticker mancante." });
+    }
+
+    let ticker = rawTicker.trim().toUpperCase();
+    if (/^[0-9]/.test(ticker) && !ticker.includes(".")) {
+      ticker = `${ticker}.MI`;
+      console.log(`[TICKER NORMALIZER] History normalizzato da ${rawTicker} a ${ticker}`);
     }
 
     console.log(`[HISTORY] Richiesto storico dettagliato per ${ticker}`);
@@ -550,24 +561,35 @@ async function startServer() {
     }
   });
 
-  // Vite development middleware o server statico per produzione
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa"
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
+// Solo se non siamo in ambiente Vercel o serverless, vogliamo avviare il server Express e gestire l'hosting statico / dev!
+const isVercel = process.env.VERCEL === "1" || !!process.env.VERCEL_ENV;
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[WYCKOFF SERVER] Servizio attivo e in ascolto sulla porta ${PORT}`);
+if (!isVercel) {
+  const startLocalServer = async () => {
+    // Vite development middleware o server statico per produzione
+    if (process.env.NODE_ENV !== "production") {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa"
+      });
+      app.use(vite.middlewares);
+    } else {
+      const distPath = path.join(process.cwd(), "dist");
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    }
+
+    const PORT = 3000;
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`[WYCKOFF SERVER] Servizio attivo e in ascolto sulla porta ${PORT}`);
+    });
+  };
+
+  startLocalServer().catch((err) => {
+    console.error("[SERVER COLD-START ERROR]", err);
   });
 }
 
-startServer();
+export default app;

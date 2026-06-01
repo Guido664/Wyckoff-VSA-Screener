@@ -23,7 +23,8 @@ const DEFAULT_TICKERS = [
   "ENI.MI", "UKRN.MI", "UCG.MI", "RACE.MI", "STLAM.MI", "STMMI.MI", 
   "ENEL.MI", "G.MI", "PRY.MI", "AZM.MI", "WBD.MI", "QTOP.MI", 
   "BAMI.MI", "LDO.MI", "FBK.MI", "1AMZN.MI", "PST.MI", "SRG.MI", 
-  "TEN.MI", "1NVDA.MI", "SEME.MI", "VWCE.MI", "1HEI.MI", "1HOLN.MI"
+  "TEN.MI", "1NVDA.MI", "SEME.MI", "VWCE.MI", "1HEI.MI", "1HOLN.MI",
+  "ISPY", "1GOOGL", "1AAPL", "1MSFT"
 ];
 
 export default function App() {
