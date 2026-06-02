@@ -400,17 +400,9 @@ app.post("/api/screener", async (req, res) => {
 
       console.log(`[SCREENER] Ambiente Vercel Serverless: ${isVercelEnv}. Ticker reali da scaricare: ${realTickersToFetch.length}, Ticker simulati di backup: ${remainingTickersForFallback.length}`);
 
-      // Eseguiamo i caricamenti reali a piccoli lotti (batch) per evitare overflow e timeouts
-      const results: (AnalysisResult | null)[] = [];
-      const batchSize = 4;
-      
-      for (let i = 0; i < realTickersToFetch.length; i += batchSize) {
-        const batch = realTickersToFetch.slice(i, i + batchSize);
-        console.log(`[SCREENER] Scaricamento batch reale ${Math.floor(i / batchSize) + 1}...`);
-        const batchPromises = batch.map(ticker => fetchAndAnalyzeTicker(ticker));
-        const batchResults = await Promise.all(batchPromises);
-        results.push(...batchResults);
-      }
+      // Eseguiamo i caricamenti reali interamente in parallelo per evitare ritardi sequenziali cumulativi e timeout
+      console.log(`[SCREENER] Esecuzione in parallelo di tutti i ${realTickersToFetch.length} caricamenti reali.`);
+      const results = await Promise.all(realTickersToFetch.map(ticker => fetchAndAnalyzeTicker(ticker)));
       
       let finalResults = results.filter((r): r is AnalysisResult => r !== null && r !== undefined);
       let isDemoMode = false;
